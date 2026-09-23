@@ -44,6 +44,19 @@
   }
   @media (max-width:820px){
     .wrap{grid-template-columns:1fr;}
+    .preview-wrap{
+      order:-1;
+      top:0;
+      z-index:10;
+      background:var(--ink-2);
+      padding:0 0 10px;
+      margin-top:-12px;
+    }
+    .preview-wrap canvas{
+      width:auto;
+      height:42vh;
+      max-width:100%;
+    }
   }
   .panel{
     background:var(--ink);
@@ -73,6 +86,10 @@
   textarea{min-height:140px; line-height:1.5;}
   .filehint{font-size:12px;color:rgba(253,248,240,.5);margin-top:6px;}
   .filehint a{color:var(--saffron);}
+  input[type=file]{
+    color:var(--cream);
+    font-size:13px;
+  }
   button{
     width:100%;
     background:var(--coral);
@@ -92,6 +109,10 @@
     border:1px solid var(--line);
     margin-top:10px;
   }
+  .sizerow{display:flex; align-items:center; gap:10px;}
+  .sizerow button{width:46px; flex:none; margin:0; padding:10px 0; font-size:14px;}
+  .sizerow button.autofit{width:auto; padding:10px 14px;}
+  .sizerow input[type=range]{flex:1; accent-color:var(--saffron);}
   .status{
     font-size:13px;
     margin-top:12px;
@@ -142,9 +163,26 @@
       </div>
 
       <div class="field">
+        <label>Script Text Size: <span id="sizeVal">56</span>px</label>
+        <div class="sizerow">
+          <button type="button" class="ghost" id="sizeMinus">A−</button>
+          <input type="range" id="sizeRange" min="28" max="96" step="1" value="56">
+          <button type="button" class="ghost" id="sizePlus">A+</button>
+          <button type="button" class="ghost autofit" id="sizeAuto">Auto</button>
+        </div>
+        <div class="filehint" id="sizeHint">Text bada-chhota karo — script box apne aap uske hisab se bada-chhota hoga.</div>
+      </div>
+
+      <div class="field">
         <label>Colour Theme (99 minimalist combinations)</label>
         <select id="paletteSelect"></select>
         <div class="filehint">11 minimalist families, 9 shades har ek — sirf video ke colours badalte hain, layout wahi rehta hai.</div>
+      </div>
+
+      <div class="field">
+        <label>Background Image (optional)</label>
+        <input type="file" id="bgImgInput" accept="image/*">
+        <div class="filehint">Agar image daalo to wahi reel ka background banega (halka dark overlay ke saath, taaki text saaf padhe). Nahi daaloge to default animated gradient chalega. <a href="#" id="bgImgRemove" class="hidden">Image hatao</a></div>
       </div>
 
       <button id="genBtn">Reel Banao</button>
@@ -169,6 +207,8 @@ const resetBtn = document.getElementById('resetBtn');
 const statusEl = document.getElementById('status');
 const paletteSelect = document.getElementById('paletteSelect');
 const dl = document.getElementById('dl');
+const bgImgInput = document.getElementById('bgImgInput');
+const bgImgRemove = document.getElementById('bgImgRemove');
 
 function hslToHex(h,s,l){
   h=((h%360)+360)%360; s/=100; l/=100;
@@ -229,6 +269,27 @@ FAMILIES.forEach((f,fi)=>{
 });
 paletteSelect.value = 4; // Ink & Saffron — Classic (original default look)
 
+let bgPhoto = null; // optional user-uploaded background image (Image object)
+
+bgImgInput.addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file){ bgPhoto = null; bgImgRemove.classList.add('hidden'); return; }
+  const img = new Image();
+  img.onload = ()=>{
+    bgPhoto = img;
+    bgImgRemove.classList.remove('hidden');
+    renderPreview();
+  };
+  img.src = URL.createObjectURL(file);
+});
+bgImgRemove.addEventListener('click', e=>{
+  e.preventDefault();
+  bgPhoto = null;
+  bgImgInput.value = '';
+  bgImgRemove.classList.add('hidden');
+  renderPreview();
+});
+
 // FB Reels safe zones: top UI ~ up to 260px, bottom UI ~ from 1480px down.
 const TOP_SAFE = 260;
 const BOTTOM_SAFE = 1480;
@@ -247,6 +308,22 @@ function wrapText(text, maxWidth, font){
     }
   }
   if(line) lines.push(line);
+  return lines;
+}
+
+// Splits text into sentences (Hindi "।" plus ./!/? as enders) and wraps each
+// sentence on its own set of lines, so a new sentence always starts a fresh line
+// even when there'd be room to continue on the previous one.
+function splitSentences(text){
+  const parts = text.match(/[^।.!?]+[।.!?]*/g) || [text];
+  return parts.map(s=>s.trim()).filter(Boolean);
+}
+function wrapTextBySentence(text, maxWidth, font){
+  const sentences = splitSentences(text);
+  let lines = [];
+  sentences.forEach(sentence=>{
+    lines = lines.concat(wrapText(sentence, maxWidth, font));
+  });
   return lines;
 }
 
@@ -282,7 +359,7 @@ function fitToHeight(text, maxWidth, maxHeight, startSize, family, weight, minSi
   let lines, lineHeight;
   while(size > minSize){
     const font = `${weight} ${size}px '${family}'`;
-    lines = wrapText(text, maxWidth, font);
+    lines = wrapTextBySentence(text, maxWidth, font);
     lineHeight = size * 1.45;
     if(lines.length * lineHeight <= maxHeight) break;
     size -= 3;
@@ -292,12 +369,30 @@ function fitToHeight(text, maxWidth, maxHeight, startSize, family, weight, minSi
 }
 
 function drawBackground(t, duration, pal){
-  // always an animated gradient-mesh background (movement, never a static frame)
-  const zoom = 1 + 0.25*(t/duration);
+  // if the user uploaded a photo, use it as the background (slow zoom + dark
+  // overlay so text stays readable); otherwise fall back to the animated
+  // gradient-mesh look.
+  const zoom = 1 + 0.12*(t/duration);
   ctx.save();
   ctx.translate(W/2, H/2);
   ctx.scale(zoom, zoom);
   ctx.translate(-W/2, -H/2);
+
+  if(bgPhoto){
+    const scale = Math.max(W/bgPhoto.width, H/bgPhoto.height);
+    const dw = bgPhoto.width*scale, dh = bgPhoto.height*scale;
+    const dx = (W-dw)/2, dy = (H-dh)/2;
+    ctx.drawImage(bgPhoto, dx, dy, dw, dh);
+
+    const overlay = ctx.createLinearGradient(0,0,0,H);
+    overlay.addColorStop(0, hexToRgba(pal.bg,0.55));
+    overlay.addColorStop(0.5, hexToRgba(pal.bg,0.35));
+    overlay.addColorStop(1, hexToRgba(pal.bg,0.6));
+    ctx.fillStyle = overlay;
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
+    return;
+  }
 
   const g = ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,pal.bg);
@@ -367,14 +462,18 @@ function roundRect(x,y,w,h,r){
 function drawScriptCard(script, topY, bottomLimit, alpha, pal){
   const padX = 44, padY = 40;
   const cardX = 70, cardW = W-140;
-  const maxTextWidth = cardW - padX*2;
+  const textLeft = cardX + 52;            // accent bar ke baad se text shuru
+  const maxTextWidth = cardW - 52 - padX;  // left 52px, right padX
   const maxCardHeight = bottomLimit - topY;
-  const maxTextHeight = maxCardHeight - padY*2;
 
-  const {size, lines, lineHeight} = fitToHeight(script, maxTextWidth, maxTextHeight, 62, 'Noto Sans Devanagari', 600, 32);
+  // text size ab user ke slider se aata hai; box text ke hisab se bada/chhota hota hai
+  const size = scriptSize;
+  const lineHeight = size * 1.45;
+  const lines = wrapTextBySentence(script, maxTextWidth, `600 ${size}px 'Noto Sans Devanagari'`);
   const textHeight = lines.length*lineHeight;
-  const cardHeight = Math.min(maxCardHeight, textHeight + padY*2);
-  const cardY = topY + (maxCardHeight - cardHeight)/2;
+  const cardHeight = textHeight + padY*2;
+  // chhota box safe area me center hota hai; bada box upar se start hoke neeche badhta hai
+  const cardY = cardHeight <= maxCardHeight ? topY + (maxCardHeight - cardHeight)/2 : topY;
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -394,15 +493,65 @@ function drawScriptCard(script, topY, bottomLimit, alpha, pal){
 
   ctx.fillStyle = pal.cardText;
   ctx.font = `600 ${size}px 'Noto Sans Devanagari'`;
-  ctx.textAlign = 'center';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  const startY = cardY + (cardHeight - textHeight)/2 + lineHeight/2;
+  const startY = cardY + padY + lineHeight/2;
   lines.forEach((line,i)=>{
-    ctx.fillText(line, cardX + cardW/2 + 14, startY + lineHeight*i);
+    ctx.fillText(line, textLeft, startY + lineHeight*i);
   });
 
   ctx.restore();
+  return { overflow: cardY + cardHeight > bottomLimit };
 }
+
+// ---- Script text size control + live preview ----
+const sizeRange = document.getElementById('sizeRange');
+const sizeVal = document.getElementById('sizeVal');
+const sizeHint = document.getElementById('sizeHint');
+let scriptSize = +sizeRange.value;
+let recording = false;
+
+function renderPreview(){
+  if(recording) return;
+  const parsed = parseCombined(combinedInput.value);
+  ctx.clearRect(0,0,W,H);
+  const pal = PALETTES[+paletteSelect.value];
+  drawBackground(0, 1, pal);
+  const title = parsed.title || 'Hindi Tips';
+  const titleBottom = drawTitle(title, 1, pal);
+  const script = parsed.script || 'Yahan aapka script dikhega. Text size slider se bada-chhota karke dekho.';
+  const res = drawScriptCard(script, titleBottom + 20, BOTTOM_SAFE, 1, pal);
+  sizeHint.textContent = res.overflow
+    ? 'Dhyan do: text bahut bada hai, box FB Reels ke neeche wale safe zone se bahar ja raha hai. Size thoda kam karo.'
+    : 'Text bada-chhota karo — script box apne aap uske hisab se bada-chhota hoga.';
+}
+function setScriptSize(v){
+  scriptSize = Math.max(+sizeRange.min, Math.min(+sizeRange.max, Math.round(v)));
+  sizeRange.value = scriptSize;
+  sizeVal.textContent = scriptSize;
+  renderPreview();
+}
+sizeRange.addEventListener('input', ()=>setScriptSize(+sizeRange.value));
+document.getElementById('sizeMinus').addEventListener('click', ()=>setScriptSize(scriptSize-2));
+document.getElementById('sizePlus').addEventListener('click', ()=>setScriptSize(scriptSize+2));
+document.getElementById('sizeAuto').addEventListener('click', ()=>{
+  const parsed = parseCombined(combinedInput.value);
+  if(!parsed.script){ setScriptSize(scriptSize); return; }
+  const tmpTitle = fittedFont(parsed.title || 'Hindi Tips', W-140, 3, 76, 'Noto Sans Devanagari', 800);
+  const titleBottom = TOP_SAFE + tmpTitle.lines.length*tmpTitle.size*1.25 + 60;
+  const maxH = (BOTTOM_SAFE - (titleBottom+20)) - 80;
+  const fit = fitToHeight(parsed.script, W-140-52-44, maxH, +sizeRange.max, 'Noto Sans Devanagari', 600, +sizeRange.min);
+  setScriptSize(fit.size);
+});
+combinedInput.addEventListener('input', renderPreview);
+paletteSelect.addEventListener('change', renderPreview);
+if(document.fonts && document.fonts.load){
+  Promise.all([
+    document.fonts.load("600 56px 'Noto Sans Devanagari'", 'अआक'),
+    document.fonts.load("800 76px 'Noto Sans Devanagari'", 'अआक')
+  ]).catch(()=>{}).then(renderPreview);
+}
+renderPreview();
 
 async function generate(){
   const parsed = parseCombined(combinedInput.value);
@@ -427,11 +576,13 @@ async function generate(){
     dl.download = (title.slice(0,30).replace(/[^\w\u0900-\u097F]+/g,'_') || 'reel') + '.webm';
     dl.classList.remove('hidden');
     resetBtn.classList.remove('hidden');
+    recording = false;
     genBtn.disabled = false;
     statusEl.textContent = 'Ho gaya! Neeche se download karo.';
   };
 
   const pal = PALETTES[+paletteSelect.value];
+  recording = true;
   recorder.start();
   const startTime = performance.now();
 
@@ -459,7 +610,7 @@ resetBtn.addEventListener('click', ()=>{
   dl.classList.add('hidden');
   resetBtn.classList.add('hidden');
   statusEl.textContent='';
-  ctx.clearRect(0,0,W,H);
+  renderPreview();
 });
 </script>
 </body>
