@@ -71,24 +71,8 @@
     resize:vertical;
   }
   textarea{min-height:140px; line-height:1.5;}
-  input[type=file]{
-    color:var(--cream);
-    font-size:13px;
-  }
   .filehint{font-size:12px;color:rgba(253,248,240,.5);margin-top:6px;}
   .filehint a{color:var(--saffron);}
-  #imgPreview{
-    display:block;
-    width:100%;
-    max-width:300px;
-    border-radius:10px;
-    border:1px solid var(--line);
-    margin-top:10px;
-    cursor:grab;
-    touch-action:none;
-  }
-  #imgPreview.hidden{display:none;}
-  #imgPreview:active{cursor:grabbing;}
   button{
     width:100%;
     background:var(--coral);
@@ -149,7 +133,7 @@
   <div class="wrap">
     <div class="panel">
       <h1>Hindi Tips Reel Maker</h1>
-      <p class="sub">Title + script daalo, image lagao (optional), aur ek FB Reels-ready video bana lo.</p>
+      <p class="sub">Title + script daalo, aur ek FB Reels-ready video bana lo.</p>
 
       <div class="field">
         <label>Title + Script (dono ek saath paste karo)</label>
@@ -161,14 +145,6 @@
         <label>Colour Theme (99 minimalist combinations)</label>
         <select id="paletteSelect"></select>
         <div class="filehint">11 minimalist families, 9 shades har ek — sirf video ke colours badalte hain, layout wahi rehta hai.</div>
-      </div>
-
-      <div class="field">
-        <label>Topic Image (optional)</label>
-        <input type="file" id="imgInput" accept="image/*">
-        <div class="filehint">Ye image background nahi banegi — reel ke neeche ek professional image box mein dikhegi, jo title ke topic ko represent kare.</div>
-        <canvas id="imgPreview" width="300" height="134" class="hidden"></canvas>
-        <div id="imgPreviewHint" class="filehint hidden">Image ko drag karke position set karo. <a href="#" id="imgResetPos">Reset</a></div>
       </div>
 
       <button id="genBtn">Reel Banao</button>
@@ -188,16 +164,11 @@ const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
 
 const combinedInput = document.getElementById('combinedInput');
-const imgInput = document.getElementById('imgInput');
 const genBtn = document.getElementById('genBtn');
 const resetBtn = document.getElementById('resetBtn');
 const statusEl = document.getElementById('status');
 const paletteSelect = document.getElementById('paletteSelect');
 const dl = document.getElementById('dl');
-const imgPreview = document.getElementById('imgPreview');
-const imgPreviewCtx = imgPreview.getContext('2d');
-const imgPreviewHint = document.getElementById('imgPreviewHint');
-const imgResetPos = document.getElementById('imgResetPos');
 
 function hslToHex(h,s,l){
   h=((h%360)+360)%360; s/=100; l/=100;
@@ -258,70 +229,9 @@ FAMILIES.forEach((f,fi)=>{
 });
 paletteSelect.value = 4; // Ink & Saffron — Classic (original default look)
 
-let bgImage = null;
-let imgOffsetX = 0, imgOffsetY = 0; // -1..1, how far the image is panned inside its box
-
-imgInput.addEventListener('change', e=>{
-  const file = e.target.files[0];
-  if(!file) { bgImage = null; imgPreview.classList.add('hidden'); imgPreviewHint.classList.add('hidden'); return; }
-  const img = new Image();
-  img.onload = ()=>{
-    bgImage = img;
-    imgOffsetX = 0; imgOffsetY = 0;
-    imgPreview.classList.remove('hidden');
-    imgPreviewHint.classList.remove('hidden');
-    drawImagePreview();
-  };
-  img.src = URL.createObjectURL(file);
-});
-
-function drawImagePreview(){
-  const pw = imgPreview.width, ph = imgPreview.height;
-  imgPreviewCtx.clearRect(0,0,pw,ph);
-  if(!bgImage) return;
-  const scale = Math.max(pw/bgImage.width, ph/bgImage.height);
-  const dw = bgImage.width*scale, dh = bgImage.height*scale;
-  const extraX = dw-pw, extraY = dh-ph;
-  const dx = -(extraX/2) + imgOffsetX*(extraX/2);
-  const dy = -(extraY/2) + imgOffsetY*(extraY/2);
-  imgPreviewCtx.drawImage(bgImage, dx, dy, dw, dh);
-}
-
-let dragging = false, dragStartX = 0, dragStartY = 0, startOffsetX = 0, startOffsetY = 0;
-imgPreview.addEventListener('pointerdown', e=>{
-  if(!bgImage) return;
-  dragging = true;
-  imgPreview.setPointerCapture(e.pointerId);
-  dragStartX = e.clientX; dragStartY = e.clientY;
-  startOffsetX = imgOffsetX; startOffsetY = imgOffsetY;
-});
-imgPreview.addEventListener('pointermove', e=>{
-  if(!dragging || !bgImage) return;
-  const rect = imgPreview.getBoundingClientRect();
-  const scaleFactor = imgPreview.width / rect.width;
-  const scale = Math.max(imgPreview.width/bgImage.width, imgPreview.height/bgImage.height);
-  const dw = bgImage.width*scale, dh = bgImage.height*scale;
-  const extraX = Math.max(1,dw-imgPreview.width), extraY = Math.max(1,dh-imgPreview.height);
-  const deltaX = (e.clientX-dragStartX)*scaleFactor;
-  const deltaY = (e.clientY-dragStartY)*scaleFactor;
-  imgOffsetX = Math.max(-1, Math.min(1, startOffsetX - deltaX/(extraX/2)));
-  imgOffsetY = Math.max(-1, Math.min(1, startOffsetY - deltaY/(extraY/2)));
-  drawImagePreview();
-});
-function endDrag(){ dragging = false; }
-imgPreview.addEventListener('pointerup', endDrag);
-imgPreview.addEventListener('pointercancel', endDrag);
-imgResetPos.addEventListener('click', e=>{
-  e.preventDefault();
-  imgOffsetX = 0; imgOffsetY = 0;
-  drawImagePreview();
-});
-
 // FB Reels safe zones: top UI ~ up to 260px, bottom UI ~ from 1480px down.
 const TOP_SAFE = 260;
 const BOTTOM_SAFE = 1480;
-const IMAGE_BOX_HEIGHT = 420;
-const IMAGE_BOX_GAP = 20;
 
 function wrapText(text, maxWidth, font){
   ctx.font = font;
@@ -382,8 +292,7 @@ function fitToHeight(text, maxWidth, maxHeight, startSize, family, weight, minSi
 }
 
 function drawBackground(t, duration, pal){
-  // always an animated gradient-mesh background (movement, never a static frame);
-  // the user's uploaded image goes into the dedicated image box instead.
+  // always an animated gradient-mesh background (movement, never a static frame)
   const zoom = 1 + 0.25*(t/duration);
   ctx.save();
   ctx.translate(W/2, H/2);
@@ -495,51 +404,6 @@ function drawScriptCard(script, topY, bottomLimit, alpha, pal){
   ctx.restore();
 }
 
-function drawImageBox(img, y, h, alpha, pal){
-  const x = 70, w = W-140;
-  ctx.save();
-  ctx.globalAlpha = alpha;
-
-  roundRect(x, y, w, h, 26);
-  ctx.save();
-  ctx.clip();
-  if(img){
-    const scale = Math.max(w/img.width, h/img.height);
-    const dw = img.width*scale, dh = img.height*scale;
-    const extraX = dw-w, extraY = dh-h;
-    const dx = x - extraX/2 + imgOffsetX*(extraX/2);
-    const dy = y - extraY/2 + imgOffsetY*(extraY/2);
-    ctx.drawImage(img, dx, dy, dw, dh);
-    const g = ctx.createLinearGradient(0,y,0,y+h);
-    g.addColorStop(0,'rgba(0,0,0,0)');
-    g.addColorStop(1,hexToRgba(pal.bg,0.35));
-    ctx.fillStyle = g;
-    ctx.fillRect(x,y,w,h);
-  } else {
-    const g = ctx.createLinearGradient(x,y,x+w,y+h);
-    g.addColorStop(0, hexToRgba(pal.accent,0.20));
-    g.addColorStop(1, hexToRgba(pal.card,0.55));
-    ctx.fillStyle = g;
-    ctx.fillRect(x,y,w,h);
-  }
-  ctx.restore();
-
-  ctx.strokeStyle = hexToRgba(pal.accent,0.7);
-  ctx.lineWidth = 3;
-  roundRect(x,y,w,h,26);
-  ctx.stroke();
-
-  if(!img){
-    ctx.fillStyle = hexToRgba(pal.bg,0.55);
-    ctx.font = `600 32px 'Poppins'`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Topic Image', x+w/2, y+h/2);
-  }
-
-  ctx.restore();
-}
-
 async function generate(){
   const parsed = parseCombined(combinedInput.value);
   const title = parsed.title || 'Hindi Tips';
@@ -579,10 +443,7 @@ async function generate(){
     const alpha = 1;
 
     const titleBottom = drawTitle(title, alpha, pal);
-    const imageBoxY = BOTTOM_SAFE - 20 - IMAGE_BOX_HEIGHT;
-    const scriptBottomLimit = imageBoxY - IMAGE_BOX_GAP;
-    drawScriptCard(script, titleBottom + 20, scriptBottomLimit, alpha, pal);
-    drawImageBox(bgImage, imageBoxY, IMAGE_BOX_HEIGHT, alpha, pal);
+    drawScriptCard(script, titleBottom + 20, BOTTOM_SAFE, alpha, pal);
 
     if(t < total){
       requestAnimationFrame(frame);
