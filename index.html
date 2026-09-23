@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hindi Tips Reel Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Noto+Sans+Devanagari:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1A1B3A;
+    --ink-2:#12132b;
+    --saffron:#F2A93B;
+    --coral:#E8553A;
+    --cream:#FDF8F0;
+    --line:rgba(253,248,240,0.14);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ink-2);
+    color:var(--cream);
+    font-family:'Poppins',sans-serif;
+    min-height:100vh;
+    padding:28px 16px 60px;
+  }
+  h1{
+    font-size:22px;
+    font-weight:800;
+    margin:0 0 4px;
+    letter-spacing:.2px;
+  }
+  .sub{
+    color:rgba(253,248,240,0.6);
+    font-size:14px;
+    margin:0 0 26px;
+  }
+  .wrap{
+    max-width:1000px;
+    margin:0 auto;
+    display:grid;
+    grid-template-columns:1fr 380px;
+    gap:28px;
+  }
+  @media (max-width:820px){
+    .wrap{grid-template-columns:1fr;}
+  }
+  .panel{
+    background:var(--ink);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:22px;
+  }
+  label{
+    display:block;
+    font-size:13px;
+    font-weight:700;
+    color:var(--saffron);
+    margin:0 0 8px;
+  }
+  .field{margin-bottom:18px;}
+  input[type=text], textarea, select{
+    width:100%;
+    background:var(--ink-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    color:var(--cream);
+    padding:12px 14px;
+    font-family:'Poppins',sans-serif;
+    font-size:15px;
+    resize:vertical;
+  }
+  textarea{min-height:140px; line-height:1.5;}
+  input[type=file]{
+    color:var(--cream);
+    font-size:13px;
+  }
+  .filehint{font-size:12px;color:rgba(253,248,240,.5);margin-top:6px;}
+  .filehint a{color:var(--saffron);}
+  #imgPreview{
+    display:block;
+    width:100%;
+    max-width:300px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    margin-top:10px;
+    cursor:grab;
+    touch-action:none;
+  }
+  #imgPreview.hidden{display:none;}
+  #imgPreview:active{cursor:grabbing;}
+  button{
+    width:100%;
+    background:var(--coral);
+    color:var(--cream);
+    border:none;
+    border-radius:10px;
+    padding:14px;
+    font-family:'Poppins',sans-serif;
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  button:disabled{opacity:.5; cursor:not-allowed;}
+  button.ghost{
+    background:transparent;
+    border:1px solid var(--line);
+    margin-top:10px;
+  }
+  .status{
+    font-size:13px;
+    margin-top:12px;
+    color:rgba(253,248,240,.7);
+    min-height:18px;
+  }
+  .preview-wrap{
+    position:sticky;
+    top:20px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  canvas{
+    width:100%;
+    max-width:340px;
+    aspect-ratio:9/16;
+    border-radius:18px;
+    background:#000;
+    border:1px solid var(--line);
+  }
+  a.download{
+    display:block;
+    text-align:center;
+    margin-top:14px;
+    background:var(--saffron);
+    color:var(--ink);
+    text-decoration:none;
+    font-weight:800;
+    padding:12px;
+    border-radius:10px;
+    width:100%;
+    max-width:340px;
+  }
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>Hindi Tips Reel Maker</h1>
+      <p class="sub">Title + script daalo, image lagao (optional), aur ek FB Reels-ready video bana lo.</p>
+
+      <div class="field">
+        <label>Title + Script (dono ek saath paste karo)</label>
+        <textarea id="combinedInput" style="min-height:220px" placeholder="TITLE: Ye 1 Trick Aapki Zindagi Badal Degi&#10;SCRIPT: Yahan poora script..."></textarea>
+        <div class="filehint">Prompt ka output seedha yahan paste karo — TITLE: aur SCRIPT: labels se tool khud alag kar lega.</div>
+      </div>
+
+      <div class="field">
+        <label>Colour Theme (99 minimalist combinations)</label>
+        <select id="paletteSelect"></select>
+        <div class="filehint">11 minimalist families, 9 shades har ek — sirf video ke colours badalte hain, layout wahi rehta hai.</div>
+      </div>
+
+      <div class="field">
+        <label>Topic Image (optional)</label>
+        <input type="file" id="imgInput" accept="image/*">
+        <div class="filehint">Ye image background nahi banegi — reel ke neeche ek professional image box mein dikhegi, jo title ke topic ko represent kare.</div>
+        <canvas id="imgPreview" width="300" height="134" class="hidden"></canvas>
+        <div id="imgPreviewHint" class="filehint hidden">Image ko drag karke position set karo. <a href="#" id="imgResetPos">Reset</a></div>
+      </div>
+
+      <button id="genBtn">Reel Banao</button>
+      <button id="resetBtn" class="ghost hidden">Naya Reel Banao</button>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="preview-wrap">
+      <canvas id="stage" width="1080" height="1920"></canvas>
+      <a id="dl" class="download hidden" download="reel.webm">Video Download Karo</a>
+    </div>
+  </div>
+
+<script>
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const combinedInput = document.getElementById('combinedInput');
+const imgInput = document.getElementById('imgInput');
+const genBtn = document.getElementById('genBtn');
+const resetBtn = document.getElementById('resetBtn');
+const statusEl = document.getElementById('status');
+const paletteSelect = document.getElementById('paletteSelect');
+const dl = document.getElementById('dl');
+const imgPreview = document.getElementById('imgPreview');
+const imgPreviewCtx = imgPreview.getContext('2d');
+const imgPreviewHint = document.getElementById('imgPreviewHint');
+const imgResetPos = document.getElementById('imgResetPos');
+
+function hslToHex(h,s,l){
+  h=((h%360)+360)%360; s/=100; l/=100;
+  const k=n=>(n+h/30)%12;
+  const a=s*Math.min(l,1-l);
+  const f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
+  const toHex=x=>Math.round(255*x).toString(16).padStart(2,'0');
+  return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+}
+function hexToRgba(hex,a){
+  const r=parseInt(hex.substr(1,2),16), g=parseInt(hex.substr(3,2),16), b=parseInt(hex.substr(5,2),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// 11 minimalist colour families (bg / accent / card-bg / card-text / title-text as HSL)
+const FAMILIES = [
+  {name:'Ink & Saffron', bg:[235,44,14], bg2:[235,44,8], accent:[38,82,58], card:[38,45,95], cardText:[235,44,14], titleText:[38,20,96]},
+  {name:'Charcoal Mono', bg:[220,8,12], bg2:[220,8,7], accent:[220,6,70], card:[40,15,96], cardText:[220,10,15], titleText:[0,0,97]},
+  {name:'Sage Whisper', bg:[150,20,14], bg2:[150,20,8], accent:[110,25,55], card:[60,25,95], cardText:[150,25,15], titleText:[90,20,95]},
+  {name:'Terracotta Earth', bg:[15,35,16], bg2:[15,35,9], accent:[18,65,55], card:[30,40,94], cardText:[15,35,16], titleText:[25,30,95]},
+  {name:'Midnight Berry', bg:[320,30,14], bg2:[320,30,8], accent:[340,55,60], card:[340,35,95], cardText:[320,30,15], titleText:[330,25,95]},
+  {name:'Ocean Slate', bg:[205,35,15], bg2:[205,35,9], accent:[185,45,55], card:[175,30,94], cardText:[205,35,15], titleText:[190,25,95]},
+  {name:'Warm Sand', bg:[30,30,15], bg2:[30,30,9], accent:[40,60,60], card:[45,40,94], cardText:[30,30,16], titleText:[42,25,95]},
+  {name:'Dusty Rose', bg:[345,20,16], bg2:[345,20,9], accent:[15,45,68], card:[350,35,95], cardText:[345,25,16], titleText:[10,20,96]},
+  {name:'Stone Grey', bg:[210,8,16], bg2:[210,8,9], accent:[210,10,65], card:[40,10,95], cardText:[210,10,17], titleText:[0,0,96]},
+  {name:'Forest Deep', bg:[140,30,13], bg2:[140,30,7], accent:[95,35,55], card:[80,25,94], cardText:[140,30,14], titleText:[90,15,95]},
+  {name:'Butter Cream', bg:[25,25,14], bg2:[25,25,8], accent:[48,70,62], card:[48,45,95], cardText:[25,25,15], titleText:[48,25,96]}
+];
+const SHADE_LABELS = ['Extra Cool','Cool','Soft Cool','Light Cool','Classic','Light Warm','Soft Warm','Warm','Extra Warm'];
+
+const PALETTES = [];
+FAMILIES.forEach(f=>{
+  for(let i=0;i<9;i++){
+    const dh = (i-4)*3;
+    PALETTES.push({
+      name: `${f.name} — ${SHADE_LABELS[i]}`,
+      bg: hslToHex(f.bg[0]+dh, f.bg[1], f.bg[2]),
+      bg2: hslToHex(f.bg2[0]+dh, f.bg2[1], f.bg2[2]),
+      accent: hslToHex(f.accent[0]+dh, f.accent[1], f.accent[2]),
+      card: hslToHex(f.card[0]+dh, f.card[1], f.card[2]),
+      cardText: hslToHex(f.cardText[0]+dh, f.cardText[1], f.cardText[2]),
+      titleText: hslToHex(f.titleText[0]+dh, f.titleText[1], f.titleText[2])
+    });
+  }
+});
+
+FAMILIES.forEach((f,fi)=>{
+  const group = document.createElement('optgroup');
+  group.label = f.name;
+  for(let i=0;i<9;i++){
+    const idx = fi*9+i;
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.textContent = PALETTES[idx].name;
+    group.appendChild(opt);
+  }
+  paletteSelect.appendChild(group);
+});
+paletteSelect.value = 4; // Ink & Saffron — Classic (original default look)
+
+let bgImage = null;
+let imgOffsetX = 0, imgOffsetY = 0; // -1..1, how far the image is panned inside its box
+
+imgInput.addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) { bgImage = null; imgPreview.classList.add('hidden'); imgPreviewHint.classList.add('hidden'); return; }
+  const img = new Image();
+  img.onload = ()=>{
+    bgImage = img;
+    imgOffsetX = 0; imgOffsetY = 0;
+    imgPreview.classList.remove('hidden');
+    imgPreviewHint.classList.remove('hidden');
+    drawImagePreview();
+  };
+  img.src = URL.createObjectURL(file);
+});
+
+function drawImagePreview(){
+  const pw = imgPreview.width, ph = imgPreview.height;
+  imgPreviewCtx.clearRect(0,0,pw,ph);
+  if(!bgImage) return;
+  const scale = Math.max(pw/bgImage.width, ph/bgImage.height);
+  const dw = bgImage.width*scale, dh = bgImage.height*scale;
+  const extraX = dw-pw, extraY = dh-ph;
+  const dx = -(extraX/2) + imgOffsetX*(extraX/2);
+  const dy = -(extraY/2) + imgOffsetY*(extraY/2);
+  imgPreviewCtx.drawImage(bgImage, dx, dy, dw, dh);
+}
+
+let dragging = false, dragStartX = 0, dragStartY = 0, startOffsetX = 0, startOffsetY = 0;
+imgPreview.addEventListener('pointerdown', e=>{
+  if(!bgImage) return;
+  dragging = true;
+  imgPreview.setPointerCapture(e.pointerId);
+  dragStartX = e.clientX; dragStartY = e.clientY;
+  startOffsetX = imgOffsetX; startOffsetY = imgOffsetY;
+});
+imgPreview.addEventListener('pointermove', e=>{
+  if(!dragging || !bgImage) return;
+  const rect = imgPreview.getBoundingClientRect();
+  const scaleFactor = imgPreview.width / rect.width;
+  const scale = Math.max(imgPreview.width/bgImage.width, imgPreview.height/bgImage.height);
+  const dw = bgImage.width*scale, dh = bgImage.height*scale;
+  const extraX = Math.max(1,dw-imgPreview.width), extraY = Math.max(1,dh-imgPreview.height);
+  const deltaX = (e.clientX-dragStartX)*scaleFactor;
+  const deltaY = (e.clientY-dragStartY)*scaleFactor;
+  imgOffsetX = Math.max(-1, Math.min(1, startOffsetX - deltaX/(extraX/2)));
+  imgOffsetY = Math.max(-1, Math.min(1, startOffsetY - deltaY/(extraY/2)));
+  drawImagePreview();
+});
+function endDrag(){ dragging = false; }
+imgPreview.addEventListener('pointerup', endDrag);
+imgPreview.addEventListener('pointercancel', endDrag);
+imgResetPos.addEventListener('click', e=>{
+  e.preventDefault();
+  imgOffsetX = 0; imgOffsetY = 0;
+  drawImagePreview();
+});
+
+// FB Reels safe zones: top UI ~ up to 260px, bottom UI ~ from 1480px down.
+const TOP_SAFE = 260;
+const BOTTOM_SAFE = 1480;
+const IMAGE_BOX_HEIGHT = 420;
+const IMAGE_BOX_GAP = 20;
+
+function wrapText(text, maxWidth, font){
+  ctx.font = font;
+  const words = text.split(' ');
+  let lines = [], line = '';
+  for(const w of words){
+    const test = line ? line + ' ' + w : w;
+    if(ctx.measureText(test).width > maxWidth && line){
+      lines.push(line);
+      line = w;
+    } else {
+      line = test;
+    }
+  }
+  if(line) lines.push(line);
+  return lines;
+}
+
+function fittedFont(text, maxWidth, maxLines, startSize, family, weight){
+  let size = startSize;
+  let lines;
+  while(size > 30){
+    const font = `${weight} ${size}px '${family}'`;
+    lines = wrapText(text, maxWidth, font);
+    if(lines.length <= maxLines) break;
+    size -= 4;
+  }
+  return { size, lines };
+}
+
+function parseCombined(raw){
+  const text = raw.trim();
+  const titleMatch = text.match(/TITLE\s*:\s*([\s\S]*?)(?:\n\s*SCRIPT\s*:|$)/i);
+  const scriptMatch = text.match(/SCRIPT\s*:\s*([\s\S]*)$/i);
+  let title = titleMatch ? titleMatch[1].trim() : '';
+  let script = scriptMatch ? scriptMatch[1].trim() : '';
+  if(!title && !script){
+    // no labels found: treat first line as title, rest as script
+    const lines = text.split('\n').filter(l=>l.trim());
+    title = lines[0] || '';
+    script = lines.slice(1).join(' ');
+  }
+  return { title, script };
+}
+
+function fitToHeight(text, maxWidth, maxHeight, startSize, family, weight, minSize){
+  let size = startSize;
+  let lines, lineHeight;
+  while(size > minSize){
+    const font = `${weight} ${size}px '${family}'`;
+    lines = wrapText(text, maxWidth, font);
+    lineHeight = size * 1.45;
+    if(lines.length * lineHeight <= maxHeight) break;
+    size -= 3;
+  }
+  lineHeight = size * 1.45;
+  return { size, lines, lineHeight };
+}
+
+function drawBackground(t, duration, pal){
+  // always an animated gradient-mesh background (movement, never a static frame);
+  // the user's uploaded image goes into the dedicated image box instead.
+  const zoom = 1 + 0.25*(t/duration);
+  ctx.save();
+  ctx.translate(W/2, H/2);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-W/2, -H/2);
+
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,pal.bg);
+  g.addColorStop(1,pal.bg2);
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+
+  // 3 soft glow blobs drifting in circular paths — a living, minimalist background
+  const blobs = [
+    {cx:0.30,cy:0.26,r:560,speed:0.80,phase:0},
+    {cx:0.72,cy:0.60,r:620,speed:0.60,phase:2.1},
+    {cx:0.45,cy:0.88,r:460,speed:1.00,phase:4.2}
+  ];
+  blobs.forEach(b=>{
+    const ang = t*b.speed + b.phase;
+    const x = W*b.cx + Math.cos(ang)*110;
+    const y = H*b.cy + Math.sin(ang*0.8)*110;
+    const r = ctx.createRadialGradient(x,y,10,x,y,b.r);
+    r.addColorStop(0, hexToRgba(pal.accent,0.22));
+    r.addColorStop(1, hexToRgba(pal.accent,0));
+    ctx.fillStyle = r;
+    ctx.fillRect(0,0,W,H);
+  });
+  ctx.restore();
+}
+
+function drawTitle(title, alpha, pal){
+  const boxY = TOP_SAFE;
+  const maxWidth = W - 140;
+  const {size, lines} = fittedFont(title, maxWidth, 3, 76, 'Noto Sans Devanagari', 800);
+  const lineHeight = size * 1.25;
+  const boxHeight = lines.length*lineHeight + 60;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = hexToRgba(pal.bg,0.72);
+  roundRect(70, boxY, W-140, boxHeight, 24);
+  ctx.fill();
+
+  ctx.strokeStyle = hexToRgba(pal.accent,0.8);
+  ctx.lineWidth = 3;
+  roundRect(70, boxY, W-140, boxHeight, 24);
+  ctx.stroke();
+
+  ctx.font = `800 ${size}px 'Noto Sans Devanagari'`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  lines.forEach((line,i)=>{
+    ctx.fillStyle = pal.titleText;
+    ctx.fillText(line, W/2, boxY+30+lineHeight*i + lineHeight/2);
+  });
+  ctx.restore();
+
+  return boxY + boxHeight;
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function drawScriptCard(script, topY, bottomLimit, alpha, pal){
+  const padX = 44, padY = 40;
+  const cardX = 70, cardW = W-140;
+  const maxTextWidth = cardW - padX*2;
+  const maxCardHeight = bottomLimit - topY;
+  const maxTextHeight = maxCardHeight - padY*2;
+
+  const {size, lines, lineHeight} = fitToHeight(script, maxTextWidth, maxTextHeight, 62, 'Noto Sans Devanagari', 600, 32);
+  const textHeight = lines.length*lineHeight;
+  const cardHeight = Math.min(maxCardHeight, textHeight + padY*2);
+  const cardY = topY + (maxCardHeight - cardHeight)/2;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  ctx.fillStyle = hexToRgba(pal.card,0.94);
+  roundRect(cardX, cardY, cardW, cardHeight, 26);
+  ctx.fill();
+  ctx.strokeStyle = hexToRgba(pal.bg,0.15);
+  ctx.lineWidth = 2;
+  roundRect(cardX, cardY, cardW, cardHeight, 26);
+  ctx.stroke();
+
+  // small accent bar on the left
+  ctx.fillStyle = pal.accent;
+  roundRect(cardX+20, cardY+24, 6, cardHeight-48, 3);
+  ctx.fill();
+
+  ctx.fillStyle = pal.cardText;
+  ctx.font = `600 ${size}px 'Noto Sans Devanagari'`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const startY = cardY + (cardHeight - textHeight)/2 + lineHeight/2;
+  lines.forEach((line,i)=>{
+    ctx.fillText(line, cardX + cardW/2 + 14, startY + lineHeight*i);
+  });
+
+  ctx.restore();
+}
+
+function drawImageBox(img, y, h, alpha, pal){
+  const x = 70, w = W-140;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  roundRect(x, y, w, h, 26);
+  ctx.save();
+  ctx.clip();
+  if(img){
+    const scale = Math.max(w/img.width, h/img.height);
+    const dw = img.width*scale, dh = img.height*scale;
+    const extraX = dw-w, extraY = dh-h;
+    const dx = x - extraX/2 + imgOffsetX*(extraX/2);
+    const dy = y - extraY/2 + imgOffsetY*(extraY/2);
+    ctx.drawImage(img, dx, dy, dw, dh);
+    const g = ctx.createLinearGradient(0,y,0,y+h);
+    g.addColorStop(0,'rgba(0,0,0,0)');
+    g.addColorStop(1,hexToRgba(pal.bg,0.35));
+    ctx.fillStyle = g;
+    ctx.fillRect(x,y,w,h);
+  } else {
+    const g = ctx.createLinearGradient(x,y,x+w,y+h);
+    g.addColorStop(0, hexToRgba(pal.accent,0.20));
+    g.addColorStop(1, hexToRgba(pal.card,0.55));
+    ctx.fillStyle = g;
+    ctx.fillRect(x,y,w,h);
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = hexToRgba(pal.accent,0.7);
+  ctx.lineWidth = 3;
+  roundRect(x,y,w,h,26);
+  ctx.stroke();
+
+  if(!img){
+    ctx.fillStyle = hexToRgba(pal.bg,0.55);
+    ctx.font = `600 32px 'Poppins'`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Topic Image', x+w/2, y+h/2);
+  }
+
+  ctx.restore();
+}
+
+async function generate(){
+  const parsed = parseCombined(combinedInput.value);
+  const title = parsed.title || 'Hindi Tips';
+  const script = parsed.script;
+  if(!script){ statusEl.textContent = 'Pehle TITLE aur SCRIPT paste karo.'; return; }
+
+  const words = script.split(/\s+/).filter(Boolean).length;
+  const total = Math.min(45, Math.max(8, words/2.3)) + 0.8;
+
+  genBtn.disabled = true;
+  statusEl.textContent = 'Reel record ho raha hai...';
+
+  const stream = canvas.captureStream(30);
+  const recorder = new MediaRecorder(stream, { mimeType:'video/webm;codecs=vp9', videoBitsPerSecond: 6_000_000 });
+  const parts = [];
+  recorder.ondataavailable = e => { if(e.data.size) parts.push(e.data); };
+  recorder.onstop = () => {
+    const blob = new Blob(parts, {type:'video/webm'});
+    const url = URL.createObjectURL(blob);
+    dl.href = url;
+    dl.download = (title.slice(0,30).replace(/[^\w\u0900-\u097F]+/g,'_') || 'reel') + '.webm';
+    dl.classList.remove('hidden');
+    resetBtn.classList.remove('hidden');
+    genBtn.disabled = false;
+    statusEl.textContent = 'Ho gaya! Neeche se download karo.';
+  };
+
+  const pal = PALETTES[+paletteSelect.value];
+  recorder.start();
+  const startTime = performance.now();
+
+  function frame(now){
+    const t = (now-startTime)/1000;
+    ctx.clearRect(0,0,W,H);
+    drawBackground(t, total, pal);
+
+    const alpha = 1;
+
+    const titleBottom = drawTitle(title, alpha, pal);
+    const imageBoxY = BOTTOM_SAFE - 20 - IMAGE_BOX_HEIGHT;
+    const scriptBottomLimit = imageBoxY - IMAGE_BOX_GAP;
+    drawScriptCard(script, titleBottom + 20, scriptBottomLimit, alpha, pal);
+    drawImageBox(bgImage, imageBoxY, IMAGE_BOX_HEIGHT, alpha, pal);
+
+    if(t < total){
+      requestAnimationFrame(frame);
+    } else {
+      recorder.stop();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+genBtn.addEventListener('click', generate);
+resetBtn.addEventListener('click', ()=>{
+  dl.classList.add('hidden');
+  resetBtn.classList.add('hidden');
+  statusEl.textContent='';
+  ctx.clearRect(0,0,W,H);
+});
+</script>
+</body>
+</html>
