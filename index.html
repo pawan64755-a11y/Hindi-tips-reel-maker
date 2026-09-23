@@ -419,10 +419,26 @@ function drawBackground(t, duration, pal){
   ctx.restore();
 }
 
+// Title hamesha heading ki tarah script text se bada rehta hai:
+// script size badhe to title bhi badhta hai (script ka kam se kam 1.25x).
+function titleLayout(title, maxWidth, forScriptSize){
+  const minSize = Math.max(30, Math.ceil(forScriptSize * 1.25));
+  let size = Math.max(76, Math.round(forScriptSize * 1.4));
+  let lines;
+  while(size > minSize){
+    lines = wrapText(title, maxWidth, `800 ${size}px 'Noto Sans Devanagari'`);
+    if(lines.length <= 3) break;
+    size -= 4;
+  }
+  if(size < minSize) size = minSize;
+  lines = wrapText(title, maxWidth, `800 ${size}px 'Noto Sans Devanagari'`);
+  return { size, lines };
+}
+
 function drawTitle(title, alpha, pal){
   const boxY = TOP_SAFE;
   const maxWidth = W - 140;
-  const {size, lines} = fittedFont(title, maxWidth, 3, 76, 'Noto Sans Devanagari', 800);
+  const {size, lines} = titleLayout(title, maxWidth, scriptSize);
   const lineHeight = size * 1.25;
   const boxHeight = lines.length*lineHeight + 60;
 
@@ -462,8 +478,7 @@ function roundRect(x,y,w,h,r){
 function drawScriptCard(script, topY, bottomLimit, alpha, pal){
   const padX = 44, padY = 40;
   const cardX = 70, cardW = W-140;
-  const textLeft = cardX + 52;            // accent bar ke baad se text shuru
-  const maxTextWidth = cardW - 52 - padX;  // left 52px, right padX
+  const maxTextWidth = cardW - padX*2;
   const maxCardHeight = bottomLimit - topY;
 
   // text size ab user ke slider se aata hai; box text ke hisab se bada/chhota hota hai
@@ -493,11 +508,11 @@ function drawScriptCard(script, topY, bottomLimit, alpha, pal){
 
   ctx.fillStyle = pal.cardText;
   ctx.font = `600 ${size}px 'Noto Sans Devanagari'`;
-  ctx.textAlign = 'left';
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const startY = cardY + padY + lineHeight/2;
   lines.forEach((line,i)=>{
-    ctx.fillText(line, textLeft, startY + lineHeight*i);
+    ctx.fillText(line, cardX + cardW/2 + 14, startY + lineHeight*i);
   });
 
   ctx.restore();
@@ -522,8 +537,8 @@ function renderPreview(){
   const script = parsed.script || 'Yahan aapka script dikhega. Text size slider se bada-chhota karke dekho.';
   const res = drawScriptCard(script, titleBottom + 20, BOTTOM_SAFE, 1, pal);
   sizeHint.textContent = res.overflow
-    ? 'Dhyan do: text bahut bada hai, box FB Reels ke neeche wale safe zone se bahar ja raha hai. Size thoda kam karo.'
-    : 'Text bada-chhota karo — script box apne aap uske hisab se bada-chhota hoga.';
+    ? 'Dhyan do: text (aur title) bahut bada hai, box FB Reels ke neeche wale safe zone se bahar ja raha hai. Size thoda kam karo.'
+    : 'Text bada-chhota karo — script box apne aap uske hisab se bada-chhota hoga. Title hamesha script se bada rahega.';
 }
 function setScriptSize(v){
   scriptSize = Math.max(+sizeRange.min, Math.min(+sizeRange.max, Math.round(v)));
@@ -537,11 +552,17 @@ document.getElementById('sizePlus').addEventListener('click', ()=>setScriptSize(
 document.getElementById('sizeAuto').addEventListener('click', ()=>{
   const parsed = parseCombined(combinedInput.value);
   if(!parsed.script){ setScriptSize(scriptSize); return; }
-  const tmpTitle = fittedFont(parsed.title || 'Hindi Tips', W-140, 3, 76, 'Noto Sans Devanagari', 800);
-  const titleBottom = TOP_SAFE + tmpTitle.lines.length*tmpTitle.size*1.25 + 60;
-  const maxH = (BOTTOM_SAFE - (titleBottom+20)) - 80;
-  const fit = fitToHeight(parsed.script, W-140-52-44, maxH, +sizeRange.max, 'Noto Sans Devanagari', 600, +sizeRange.min);
-  setScriptSize(fit.size);
+  const title = parsed.title || 'Hindi Tips';
+  const minS = +sizeRange.min, maxS = +sizeRange.max;
+  let best = minS;
+  for(let sz = maxS; sz >= minS; sz--){
+    const tl = titleLayout(title, W-140, sz);
+    const titleBottom = TOP_SAFE + tl.lines.length*tl.size*1.25 + 60;
+    const maxH = (BOTTOM_SAFE - (titleBottom + 20)) - 80;
+    const lines = wrapTextBySentence(parsed.script, W-140-88, `600 ${sz}px 'Noto Sans Devanagari'`);
+    if(lines.length * sz * 1.45 <= maxH){ best = sz; break; }
+  }
+  setScriptSize(best);
 });
 combinedInput.addEventListener('input', renderPreview);
 paletteSelect.addEventListener('change', renderPreview);
